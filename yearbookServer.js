@@ -21,16 +21,32 @@ const MAX_FILE_SIZE = 600 * 1024 * 1024;
 
 const app = express();
 
-// ✅ STEP 1: CORS must be the VERY FIRST middleware
+// ✅ CORS Middleware - Accept ALL origins (wildcard)
+// app.use((req, res, next) => {
+//   res.header("Access-Control-Allow-Origin", "*");
+//   res.header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE");
+//   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-access-token, x-refresh-token");
+//   res.header("Access-Control-Max-Age", "86400");
+  
+//   if (req.method === "OPTIONS") {
+//     return res.status(200).end();
+//   }
+//   next();
+// });/
+
+const corsOptions = {
+  origin: [
+    
+    "https://batch-2022-26-navy.vercel.app/",
+    "http://localhost:3000",
+  ],
+  // origin:'*',
+  methods: ["GET", "POST", "PUT", "DELETE","OPTIONS" , "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
 
 
-// ✅ STEP 3: cors package as backup
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"],
-  optionsSuccessStatus: 200,
-}));
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -38,7 +54,7 @@ app.use("/uploads", express.static(UPLOADS_DIR));
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit for profiles
 });
 
 let storageInitialized = false;
@@ -60,16 +76,19 @@ if (cloudinaryConfigured) {
   });
 }
 
+// Request logging middleware
 app.use((req, res, next) => {
   console.log(`📍 ${req.method} ${req.path}`);
   next();
 });
 
+// Initialize storage and track promise for middleware
 const storageInitPromise = initializeStorage().catch((error) => {
   console.error("Storage initialization error:", error.message);
   throw error;
 });
 
+// Database ready check middleware (skip for health check)
 app.use(async (req, res, next) => {
   if (req.path === "/api/health" || req.path === "/") return next();
   try {
@@ -144,6 +163,16 @@ function createSeedStudents() {
   });
 }
 
+function createSeedMedia() {
+  return [];
+}
+
+function createSeedMessages() {
+  return [];
+}
+
+
+
 function normalizeYear(year) {
   return YEAR_OPTIONS.includes(year) ? year : "1st yr";
 }
@@ -152,6 +181,8 @@ function buildFallbackImage(seed) {
   const safeSeed = encodeURIComponent(String(seed || "student"));
   return `https://picsum.photos/seed/${safeSeed}/300/400`;
 }
+
+
 
 function normalizeRecord(record) {
   const plain = typeof record?.toObject === "function" ? record.toObject() : { ...record };
@@ -163,6 +194,10 @@ function normalizeRecord(record) {
   return plain;
 }
 
+async function ensureLocalStorage() {
+  // Local storage disabled - using MongoDB only
+}
+
 async function seedMongoCollection(Model, items) {
   const count = await Model.countDocuments();
   if (count === 0) await Model.insertMany(items);
@@ -172,6 +207,7 @@ async function initializeStorage() {
   if (storageInitialized) return;
   console.log("🚀 Initializing MongoDB connection...");
   try {
+    console.log("🔌 Connecting to MongoDB...");
     await mongoose.connect(MONGODB_URI, {
       serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 45000,
@@ -179,18 +215,19 @@ async function initializeStorage() {
       maxPoolSize: 10,
       retryWrites: true,
     });
-    console.log("✅ MongoDB Connected!");
+    console.log("✅ MongoDB Connected Successfully!");
     await Promise.all([
       seedMongoCollection(Student, createSeedStudents()),
-      seedMongoCollection(Media, []),
-      seedMongoCollection(Message, []),
+      seedMongoCollection(Media, createSeedMedia()),
+      seedMongoCollection(Message, createSeedMessages()),
     ]);
-    console.log("✅ Database ready");
+    console.log("✅ Database initialized with seed data");
   } catch (error) {
-    console.error("❌ MongoDB Failed:", error.message);
-    throw new Error("Database connection required");
+    console.error("❌ MongoDB Connection Failed:", error.message);
+    throw new Error("Database connection required - cannot proceed without MongoDB");
   }
   storageInitialized = true;
+  console.log("✅ Storage initialized: MONGODB ONLY");
 }
 
 async function listStudents() {
@@ -315,13 +352,11 @@ async function uploadAsset(file, req, folder) {
         mimeType: file.mimetype || "",
       };
     } catch (error) {
-      console.warn(`Cloudinary failed: ${error.message}`);
+      console.warn(`Cloudinary failed, saving locally instead. ${error.message}`);
     }
   }
   return saveFileLocally(file, req, folder);
 }
-
-// ── ROUTES ──────────────────────────────────────────
 
 app.get("/", (req, res) => {
   res.json({ message: "Batch 2022-26 Yearbook API is running." });
@@ -342,7 +377,8 @@ app.get("/api/students", async (req, res, next) => {
 
 app.get("/api/students/:id", async (req, res, next) => {
   try {
-    const student = await Student.findById(req.params.id);
+    const studentId = req.params.id;
+    const student = await Student.findById(studentId);
     if (!student) return res.status(404).json({ error: "Student not found." });
     res.json(normalizeRecord(student));
   } catch (error) {
@@ -366,6 +402,7 @@ app.patch("/api/students/:id", upload.single("image"), async (req, res, next) =>
   try {
     const studentId = req.params.id;
     const updates = {};
+    
     if (Object.hasOwn(req.body, "name")) {
       const name = String(req.body.name || "").trim();
       if (!name) return res.status(400).json({ error: "Name cannot be empty." });
@@ -378,17 +415,27 @@ app.patch("/api/students/:id", upload.single("image"), async (req, res, next) =>
     }
     if (Object.hasOwn(req.body, "year")) updates.year = normalizeYear(req.body.year);
     if (Object.hasOwn(req.body, "email")) updates.email = String(req.body.email || "").trim();
+    
+    // Handle image upload if provided
     if (req.file) {
-      if (!req.file.mimetype?.startsWith("image/")) {
-        return res.status(400).json({ error: "Must be image." });
+      try {
+        if (!req.file.mimetype?.startsWith("image/")) {
+          return res.status(400).json({ error: "Must be image." });
+        }
+        const uploadedImage = await uploadAsset(req.file, req, "profiles");
+        updates.image = uploadedImage.url;
+      } catch (uploadError) {
+        console.error("Image upload failed:", uploadError.message);
+        return res.status(500).json({ error: "Image upload failed." });
       }
-      const uploadedImage = await uploadAsset(req.file, req, "profiles");
-      updates.image = uploadedImage.url;
     }
+    
     const updatedStudent = await updateStudentRecord(studentId, updates);
     if (!updatedStudent) return res.status(404).json({ error: "Student not found." });
+    
     res.json(updatedStudent);
   } catch (error) {
+    console.error("PATCH /api/students/:id error:", error.message);
     next(error);
   }
 });
@@ -467,8 +514,12 @@ app.post("/api/seed-students", async (req, res, next) => {
     for (const studentData of seedData) {
       try {
         const existing = await Student.findOne({ roll: studentData.roll });
-        if (!existing) { await Student.create(studentData); addedCount++; }
-        else skippedCount++;
+        if (!existing) {
+          await Student.create(studentData);
+          addedCount++;
+        } else {
+          skippedCount++;
+        }
       } catch (err) {
         console.error(`Failed to seed roll ${studentData.roll}:`, err.message);
       }
@@ -481,26 +532,32 @@ app.post("/api/seed-students", async (req, res, next) => {
 
 app.use((error, req, res, next) => {
   if (error instanceof multer.MulterError) {
-    if (error.code === "LIMIT_FILE_SIZE") return res.status(400).json({ error: "File too large. Max 5MB." });
+    if (error.code === "LIMIT_FILE_SIZE") return res.status(400).json({ error: "File too large. Max 25MB." });
     return res.status(400).json({ error: error.message });
   }
+  if (error.message === "Origin not allowed by CORS") return res.status(403).json({ error: error.message });
   console.error("API error:", error);
   return res.status(500).json({ error: "Something went wrong." });
 });
 
 async function startServer() {
+  // Wait for initialization to complete before listening
   await storageInitPromise;
   return new Promise((resolve) => {
     const server = app.listen(PORT, () => {
       console.log(`Yearbook API listening on http://localhost:${PORT}`);
+      console.log(`API ready at http://localhost:${PORT}/api`);
       resolve(server);
     });
   });
 }
 
+// Initialize storage immediately when module loads (for Vercel serverless)
+// Already handled by storageInitPromise above
+
 if (process.argv[1] === __filename) {
   startServer().catch((error) => {
-    console.error("Failed to start:", error);
+    console.error("Failed to start the Yearbook API:", error);
     process.exit(1);
   });
 }
