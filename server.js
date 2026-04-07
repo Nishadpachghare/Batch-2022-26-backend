@@ -15,8 +15,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT) || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
-const DATA_DIR = path.join(__dirname, "data");
-const DATA_FILE = path.join(DATA_DIR, "yearbook.json");
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 const YEAR_OPTIONS = ["1st yr", "2nd yr", "3rd yr", "4th yr"];
 const MAX_FILE_SIZE = 600 * 1024 * 1024;
@@ -142,30 +140,7 @@ function createSeedMessages() {
   return [];
 }
 
-function createLocalSeedData() {
-  return {
-    students: createSeedStudents().map((student) => ({
-      _id: crypto.randomUUID(),
-      ...student,
-    })),
-    media: createSeedMedia().map((item) => ({
-      _id: crypto.randomUUID(),
-      ...item,
-    })),
-    messages: createSeedMessages().map((message) => ({
-      _id: crypto.randomUUID(),
-      ...message,
-    })),
-  };
-}
 
-function sanitizeLocalData(data) {
-  return {
-    students: Array.isArray(data?.students) ? data.students : [],
-    media: Array.isArray(data?.media) ? data.media : [],
-    messages: Array.isArray(data?.messages) ? data.messages : [],
-  };
-}
 
 function normalizeYear(year) {
   return YEAR_OPTIONS.includes(year) ? year : "1st yr";
@@ -176,14 +151,7 @@ function buildFallbackImage(seed) {
   return `https://picsum.photos/seed/${safeSeed}/300/400`;
 }
 
-function sortByRoll(left, right) {
-  const leftRoll = Number.parseInt(String(left.roll).replace(/\D/g, ""), 10);
-  const rightRoll = Number.parseInt(String(right.roll).replace(/\D/g, ""), 10);
-  if (!Number.isNaN(leftRoll) && !Number.isNaN(rightRoll)) {
-    return leftRoll - rightRoll;
-  }
-  return String(left.roll).localeCompare(String(right.roll), undefined, { numeric: true });
-}
+
 
 function normalizeRecord(record) {
   const plain = typeof record?.toObject === "function" ? record.toObject() : { ...record };
@@ -373,13 +341,7 @@ app.get("/api/students", async (req, res, next) => {
 app.get("/api/students/:id", async (req, res, next) => {
   try {
     const studentId = req.params.id;
-    if (storageMode === "mongo") {
-      const student = await Student.findById(studentId);
-      if (!student) return res.status(404).json({ error: "Student not found." });
-      return res.json(normalizeRecord(student));
-    }
-    const data = await readLocalData();
-    const student = data.students.find((s) => s._id === studentId);
+    const student = await Student.findById(studentId);
     if (!student) return res.status(404).json({ error: "Student not found." });
     res.json(normalizeRecord(student));
   } catch (error) {
