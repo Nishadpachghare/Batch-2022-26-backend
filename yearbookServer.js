@@ -1,6 +1,5 @@
 import express from "express";
 import mongoose from "mongoose";
-import cors from "cors";
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import dotenv from "dotenv";
@@ -72,29 +71,39 @@ if (cloudinaryConfigured) {
   });
 }
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (isAllowedOrigin(origin)) {
-        if (origin) {
-          console.log(`✅ CORS: ${origin} allowed`);
-        } else {
-          console.log("✅ CORS: No origin header (allowed)");
-        }
-        callback(null, true);
-        return;
-      }
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
 
-      console.warn(
-        `❌ CORS: ${origin} not allowed. Allowed: ${FRONTEND_ORIGINS.join(", ")}`,
-      );
-      callback(null, true); // Still allow for dev, just log it
-    },
-    credentials: true,
-    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Accept", "Origin"],
-  }),
-);
+  if (isAllowedOrigin(origin)) {
+    if (origin) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+      console.log(`✅ CORS: ${origin} allowed`);
+    } else {
+      console.log("✅ CORS: No origin header (allowed)");
+    }
+
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
+    );
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, Accept, Origin",
+    );
+  } else {
+    console.warn(
+      `❌ CORS: ${origin} not allowed. Allowed: ${FRONTEND_ORIGINS.join(", ")}`,
+    );
+  }
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
 app.use(express.json({ limit: "600mb" }));
 app.use(express.urlencoded({ limit: "600mb", extended: true }));
 app.use("/uploads", express.static(UPLOADS_DIR));
