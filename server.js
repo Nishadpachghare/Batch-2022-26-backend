@@ -6,7 +6,6 @@ import dotenv from "dotenv";
 import fs from "node:fs/promises";
 import path from "node:path";
 import cors from "cors";
-import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 dotenv.config();
@@ -177,7 +176,13 @@ async function initializeStorage() {
   console.log("🚀 Initializing MongoDB connection...");
   try {
     console.log("🔌 Connecting to MongoDB...");
-    await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 4000 });
+    await mongoose.connect(MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 10000,
+      maxPoolSize: 10,
+      retryWrites: true,
+    });
     console.log("✅ MongoDB Connected Successfully!");
     await Promise.all([
       seedMongoCollection(Student, createSeedStudents()),
