@@ -1,3 +1,3 @@
-import app from "../yearbookServer.js";
+import app from "../server.js";
 
 export default app;
