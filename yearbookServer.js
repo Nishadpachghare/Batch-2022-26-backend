@@ -23,17 +23,31 @@ const MAX_FILE_SIZE = 600 * 1024 * 1024;
 const app = express();
 
 // ✅ CORS MIDDLEWARE - MUST BE FIRST - before everything else
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-access-token, x-refresh-token");
+// app.use((req, res, next) => {
+//   res.header("Access-Control-Allow-Origin", "*");
+//   res.header("Access-Control-Allow-Credentials", "true");
+//   res.header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE");
+//   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-access-token, x-refresh-token");
   
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-  next();
-});
+//   if (req.method === "OPTIONS") {
+//     return res.sendStatus(204);
+//   }
+//   next();
+// });
+const corsOptions = {
+  origin: [
+    
+    "https://batch-2022-26-navy.vercel.app/",
+    "http://localhost:3000",
+  ],
+  // origin:'*',
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+//middleware
+app.use(express.json({ limit: '50mb' }));
+
+app.use(cors(corsOptions));
 
 const upload = multer({
   storage: multer.memoryStorage(),
