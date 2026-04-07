@@ -513,7 +513,8 @@ app.use((error, req, res, next) => {
 });
 
 async function startServer() {
-  await initializeStorage();
+  // Wait for initialization to complete before listening
+  await storageInitPromise;
   return new Promise((resolve) => {
     const server = app.listen(PORT, () => {
       console.log(`Yearbook API listening on http://localhost:${PORT}`);
