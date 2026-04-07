@@ -95,7 +95,6 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization", "Accept", "Origin"],
   }),
 );
-app.options("*", cors());
 app.use(express.json({ limit: "600mb" }));
 app.use(express.urlencoded({ limit: "600mb", extended: true }));
 app.use("/uploads", express.static(UPLOADS_DIR));
