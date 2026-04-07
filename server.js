@@ -17,7 +17,6 @@ const PORT = Number(process.env.PORT) || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 const YEAR_OPTIONS = ["1st yr", "2nd yr", "3rd yr", "4th yr"];
-const MAX_FILE_SIZE = 600 * 1024 * 1024;
 
 const app = express();
 
@@ -41,7 +40,7 @@ const corsOptions = {
     "http://localhost:3000",
   ],
   // origin:'*',
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  methods: ["GET", "POST", "PUT", "DELETE","OPTIONS" , "PATCH"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
