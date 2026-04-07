@@ -26,43 +26,6 @@ const DATA_FILE = path.join(DATA_DIR, "yearbook.json");
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 const YEAR_OPTIONS = ["1st yr", "2nd yr", "3rd yr", "4th yr"];
 const MAX_FILE_SIZE = 600 * 1024 * 1024;
-const isProduction = process.env.NODE_ENV === "production";
-
-function isAllowedOrigin(origin) {
-  if (!origin) {
-    return true;
-  }
-
-  if (FRONTEND_ORIGINS.includes(origin)) {
-    return true;
-  }
-
-  if (isProduction && origin.endsWith(".vercel.app")) {
-    return true;
-  }
-
-  return FRONTEND_ORIGINS.length === 0;
-}
-
-function resolveCorsOrigin(origin) {
-  if (!origin) {
-    return "";
-  }
-
-  if (FRONTEND_ORIGINS.includes(origin)) {
-    return origin;
-  }
-
-  if (isProduction && origin.endsWith(".vercel.app")) {
-    return origin;
-  }
-
-  if (FRONTEND_ORIGINS.length === 0) {
-    return origin;
-  }
-
-  return "";
-}
 
 const app = express();
 const upload = multer({
@@ -92,32 +55,13 @@ if (cloudinaryConfigured) {
 }
 
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  const allowedOrigin = resolveCorsOrigin(origin);
-
-  if (isAllowedOrigin(origin)) {
-    if (allowedOrigin) {
-      res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
-      res.setHeader("Vary", "Origin");
-      console.log(`✅ CORS: ${allowedOrigin} allowed`);
-    } else {
-      console.log("✅ CORS: No origin header (allowed)");
-    }
-
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader(
-      "Access-Control-Allow-Methods",
-      "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
-    );
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, Accept, Origin",
-    );
-  } else {
-    console.warn(
-      `❌ CORS: ${origin} not allowed. Allowed: ${FRONTEND_ORIGINS.join(", ")}`,
-    );
-  }
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    req.headers["access-control-request-headers"] || "Content-Type, Authorization, Accept, Origin",
+  );
+  res.setHeader("Access-Control-Max-Age", "86400");
 
   if (req.method === "OPTIONS") {
     return res.sendStatus(204);
