@@ -34,14 +34,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Increase body limits to 100mb for large media responses
-app.use(express.json({ limit: "100mb" }));
-app.use(express.urlencoded({ limit: "100mb", extended: true }));
+// Increase body limits to handle 200MB+ file uploads with metadata
+app.use(express.json({ limit: "250mb" }));
+app.use(express.urlencoded({ limit: "250mb", extended: true }));
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit for high-quality profile images
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB limit for high-quality profile images
 });
 
 let storageInitialized = false;
