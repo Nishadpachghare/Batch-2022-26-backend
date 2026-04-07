@@ -45,9 +45,7 @@ const upload = multer({
   limits: { fileSize: MAX_FILE_SIZE },
 });
 
-let storageMode = "file";
 let storageInitialized = false;
-let memoryFallbackData = null;
 
 const cloudinaryConfigured = Boolean(
   process.env.CLOUDINARY_NAME &&
@@ -198,41 +196,7 @@ function normalizeRecord(record) {
 }
 
 async function ensureLocalStorage() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.mkdir(UPLOADS_DIR, { recursive: true });
-  try {
-    const existing = await fs.readFile(DATA_FILE, "utf8");
-    const parsed = sanitizeLocalData(JSON.parse(existing));
-    await fs.writeFile(DATA_FILE, JSON.stringify(parsed, null, 2));
-  } catch (error) {
-    if (error.code !== "ENOENT") console.warn("Local data file was missing or invalid.");
-    const initialData = createLocalSeedData();
-    await fs.writeFile(DATA_FILE, JSON.stringify(initialData, null, 2));
-    memoryFallbackData = initialData;
-  }
-}
-
-async function readLocalData() {
-  try {
-    const raw = await fs.readFile(DATA_FILE, "utf8");
-    return sanitizeLocalData(JSON.parse(raw));
-  } catch (error) {
-    if (!memoryFallbackData) memoryFallbackData = createLocalSeedData();
-    console.warn("⚠️ Falling back to in-memory data:", error.message);
-    return sanitizeLocalData(memoryFallbackData);
-  }
-}
-
-async function writeLocalData(data) {
-  try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
-    memoryFallbackData = data;
-    console.log("✅ Data persisted to file");
-  } catch (error) {
-    memoryFallbackData = data;
-    console.warn("⚠️ Local write failed, using memory:", error.message);
-  }
+  // Local storage disabled - using MongoDB only
 }
 
 async function seedMongoCollection(Model, items) {
@@ -241,37 +205,29 @@ async function seedMongoCollection(Model, items) {
 }
 
 async function initializeStorage() {
-  if (storageInitialized) return storageMode;
-  console.log("🚀 Initializing storage layer...");
-  await ensureLocalStorage();
+  if (storageInitialized) return;
+  console.log("🚀 Initializing MongoDB connection...");
   try {
-    console.log("🔌 Attempting MongoDB...");
+    console.log("🔌 Connecting to MongoDB...");
     await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 4000 });
-    storageMode = "mongo";
-    console.log("✅ MongoDB Connected!");
+    console.log("✅ MongoDB Connected Successfully!");
     await Promise.all([
       seedMongoCollection(Student, createSeedStudents()),
       seedMongoCollection(Media, createSeedMedia()),
       seedMongoCollection(Message, createSeedMessages()),
     ]);
-    console.log("✅ MongoDB initialized");
+    console.log("✅ Database initialized with seed data");
   } catch (error) {
-    storageMode = "file";
-    console.warn("⚠️  MongoDB failed:", error.message);
-    console.log("📁 Using JSON file storage");
+    console.error("❌ MongoDB Connection Failed:", error.message);
+    throw new Error("Database connection required - cannot proceed without MongoDB");
   }
   storageInitialized = true;
-  console.log(`✅ Storage mode: ${storageMode.toUpperCase()}`);
-  return storageMode;
+  console.log("✅ Storage initialized: MONGODB ONLY");
 }
 
 async function listStudents() {
-  if (storageMode === "mongo") {
-    const students = await Student.find().sort({ roll: 1, name: 1 });
-    return students.map(normalizeRecord);
-  }
-  const data = await readLocalData();
-  return [...data.students].sort(sortByRoll).map(normalizeRecord);
+  const students = await Student.find().sort({ roll: 1, name: 1 });
+  return students.map(normalizeRecord);
 }
 
 async function createStudentRecord(payload) {
@@ -284,61 +240,30 @@ async function createStudentRecord(payload) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-  if (storageMode === "mongo") {
-    const createdStudent = await Student.create(student);
-    return normalizeRecord(createdStudent);
-  }
-  const data = await readLocalData();
-  const createdStudent = { _id: crypto.randomUUID(), ...student };
-  data.students.push(createdStudent);
-  await writeLocalData(data);
+  const createdStudent = await Student.create(student);
   return normalizeRecord(createdStudent);
 }
 
 async function updateStudentRecord(studentId, updates) {
   const preparedUpdates = { ...updates, updatedAt: new Date().toISOString() };
-  if (storageMode === "mongo") {
-    const updatedStudent = await Student.findByIdAndUpdate(studentId, preparedUpdates, {
-      new: true,
-      runValidators: true,
-    });
-    return normalizeRecord(updatedStudent);
-  }
-  const data = await readLocalData();
-  const studentIndex = data.students.findIndex((s) => s._id === studentId);
-  if (studentIndex === -1) return null;
-  const updatedStudent = { ...data.students[studentIndex], ...preparedUpdates };
-  data.students[studentIndex] = updatedStudent;
-  await writeLocalData(data);
+  const updatedStudent = await Student.findByIdAndUpdate(studentId, preparedUpdates, {
+    new: true,
+    runValidators: true,
+  });
   return normalizeRecord(updatedStudent);
 }
 
 async function deleteStudentRecord(studentId) {
-  if (storageMode === "mongo") {
-    const deletedStudent = await Student.findByIdAndDelete(studentId);
-    return normalizeRecord(deletedStudent);
-  }
-  const data = await readLocalData();
-  const studentIndex = data.students.findIndex((s) => s._id === studentId);
-  if (studentIndex === -1) return null;
-  const [deletedStudent] = data.students.splice(studentIndex, 1);
-  await writeLocalData(data);
+  const deletedStudent = await Student.findByIdAndDelete(studentId);
   return normalizeRecord(deletedStudent);
 }
 
 async function listMedia(filters = {}) {
-  if (storageMode === "mongo") {
-    const query = {};
-    if (filters.year) query.year = filters.year;
-    if (filters.studentId) query.studentId = filters.studentId;
-    const media = await Media.find(query).sort({ uploadedAt: -1 });
-    return media.map(normalizeRecord);
-  }
-  const data = await readLocalData();
-  let media = [...data.media];
-  if (filters.year) media = media.filter((item) => item.year === filters.year);
-  if (filters.studentId) media = media.filter((item) => item.studentId === filters.studentId);
-  return media.sort((l, r) => new Date(r.uploadedAt) - new Date(l.uploadedAt)).map(normalizeRecord);
+  const query = {};
+  if (filters.year) query.year = filters.year;
+  if (filters.studentId) query.studentId = filters.studentId;
+  const media = await Media.find(query).sort({ uploadedAt: -1 });
+  return media.map(normalizeRecord);
 }
 
 async function createMediaRecord(payload) {
@@ -354,14 +279,7 @@ async function createMediaRecord(payload) {
     mimeType: payload.mimeType || "",
     uploadedAt: new Date().toISOString(),
   };
-  if (storageMode === "mongo") {
-    const createdMedia = await Media.create(mediaRecord);
-    return normalizeRecord(createdMedia);
-  }
-  const data = await readLocalData();
-  const createdMedia = { _id: crypto.randomUUID(), ...mediaRecord };
-  data.media.unshift(createdMedia);
-  await writeLocalData(data);
+  const createdMedia = await Media.create(mediaRecord);
   return normalizeRecord(createdMedia);
 }
 
@@ -371,16 +289,10 @@ async function listMessages(filters = {}) {
     if (!normalized) return null;
     return { _id: normalized._id, content: normalized.content, createdAt: normalized.createdAt };
   }
-  if (storageMode === "mongo") {
-    const query = {};
-    if (filters.toStudentId) query.toStudentId = filters.toStudentId;
-    const messages = await Message.find(query).sort({ createdAt: -1 });
-    return messages.map(sanitizeMessage).filter(Boolean);
-  }
-  const data = await readLocalData();
-  let messages = [...data.messages];
-  if (filters.toStudentId) messages = messages.filter((m) => m.toStudentId === filters.toStudentId);
-  return messages.sort((l, r) => new Date(r.createdAt) - new Date(l.createdAt)).map(sanitizeMessage).filter(Boolean);
+  const query = {};
+  if (filters.toStudentId) query.toStudentId = filters.toStudentId;
+  const messages = await Message.find(query).sort({ createdAt: -1 });
+  return messages.map(sanitizeMessage).filter(Boolean);
 }
 
 async function createMessageRecord(payload) {
@@ -390,14 +302,7 @@ async function createMessageRecord(payload) {
     toStudentId: (payload.toStudentId || "").trim(),
     createdAt: new Date().toISOString(),
   };
-  if (storageMode === "mongo") {
-    const createdMessage = await Message.create(messageRecord);
-    return normalizeRecord(createdMessage);
-  }
-  const data = await readLocalData();
-  const createdMessage = { _id: crypto.randomUUID(), ...messageRecord };
-  data.messages.unshift(createdMessage);
-  await writeLocalData(data);
+  const createdMessage = await Message.create(messageRecord);
   return normalizeRecord(createdMessage);
 }
 
@@ -449,11 +354,11 @@ async function uploadAsset(file, req, folder) {
 }
 
 app.get("/", (req, res) => {
-  res.json({ message: "Batch 2022-26 Yearbook API is running.", storageMode });
+  res.json({ message: "Batch 2022-26 Yearbook API is running." });
 });
 
 app.get("/api/health", (req, res) => {
-  res.json({ ok: true, storageMode });
+  res.json({ ok: true });
 });
 
 app.get("/api/students", async (req, res, next) => {
@@ -596,25 +501,12 @@ app.post("/api/seed-students", async (req, res, next) => {
     let addedCount = 0, skippedCount = 0;
     for (const studentData of seedData) {
       try {
-        if (storageMode === "mongo") {
-          const existing = await Student.findOne({ roll: studentData.roll });
-          if (!existing) {
-            await Student.create(studentData);
-            addedCount++;
-          } else {
-            skippedCount++;
-          }
+        const existing = await Student.findOne({ roll: studentData.roll });
+        if (!existing) {
+          await Student.create(studentData);
+          addedCount++;
         } else {
-          const data = await readLocalData();
-          const exists = data.students.some((s) => s.roll === studentData.roll);
-          if (!exists) {
-            const newStudent = { _id: crypto.randomUUID(), ...studentData };
-            data.students.push(newStudent);
-            await writeLocalData(data);
-            addedCount++;
-          } else {
-            skippedCount++;
-          }
+          skippedCount++;
         }
       } catch (err) {
         console.error(`Failed to seed roll ${studentData.roll}:`, err.message);
@@ -637,12 +529,11 @@ app.use((error, req, res, next) => {
 });
 
 async function startServer() {
-  const activeStorageMode = await initializeStorage();
+  await initializeStorage();
   return new Promise((resolve) => {
     const server = app.listen(PORT, () => {
       console.log(`Yearbook API listening on http://localhost:${PORT}`);
       console.log(`API ready at http://localhost:${PORT}/api`);
-      console.log(`Storage mode: ${activeStorageMode}`);
       resolve(server);
     });
   });
