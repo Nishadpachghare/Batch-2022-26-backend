@@ -1,0 +1,14 @@
+{
+  "buildCommand": "npm install",
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/api"
+    }
+  ],
+  "functions": {
+    "api/[[...path]].mjs": {
+      "maxDuration": 60
+    }
+  }
+}

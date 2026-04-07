@@ -521,6 +521,20 @@ async function createMediaRecord(payload) {
 }
 
 async function listMessages(filters = {}) {
+  function sanitizeMessage(message) {
+    const normalized = normalizeRecord(message);
+
+    if (!normalized) {
+      return null;
+    }
+
+    return {
+      _id: normalized._id,
+      content: normalized.content,
+      createdAt: normalized.createdAt,
+    };
+  }
+
   if (storageMode === "mongo") {
     const query = {};
 
@@ -530,7 +544,7 @@ async function listMessages(filters = {}) {
 
     const messages = await Message.find(query).sort({ createdAt: -1 });
     console.log(`📨 Retrieved ${messages.length} message(s) from MongoDB`);
-    return messages.map(normalizeRecord);
+    return messages.map(sanitizeMessage).filter(Boolean);
   }
 
   const data = await readLocalData();
@@ -546,7 +560,8 @@ async function listMessages(filters = {}) {
     .sort((left, right) => {
       return new Date(right.createdAt) - new Date(left.createdAt);
     })
-    .map(normalizeRecord);
+    .map(sanitizeMessage)
+    .filter(Boolean);
     
   console.log(`📨 Retrieved ${sorted.length} message(s) from JSON file`);
   return sorted;
@@ -555,7 +570,6 @@ async function listMessages(filters = {}) {
 async function createMessageRecord(payload) {
   const messageRecord = {
     content: payload.content.trim(),
-    fromName: (payload.fromName || "Anonymous").trim() || "Anonymous",
     toName: (payload.toName || "The Wall").trim() || "The Wall",
     toStudentId: (payload.toStudentId || "").trim(),
     createdAt: new Date().toISOString(),
@@ -868,7 +882,6 @@ app.post("/api/messages", async (req, res, next) => {
 
     const message = await createMessageRecord({
       content,
-      fromName: req.body.fromName,
       toName: req.body.toName,
       toStudentId: req.body.toStudentId,
     });
