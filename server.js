@@ -67,6 +67,15 @@ app.use((req, res, next) => {
   next();
 });
 
+// Database ready check middleware (skip for health check)
+app.use((req, res, next) => {
+  if (req.path === "/api/health") return next();
+  if (!storageInitialized) {
+    return res.status(503).json({ error: "Database not ready. Try again in a moment." });
+  }
+  next();
+});
+
 const studentSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
