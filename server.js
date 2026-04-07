@@ -23,12 +23,12 @@ const app = express();
 // ✅ CORS Middleware - Accept ALL origins (wildcard)
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Credentials", "true");
   res.header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE");
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-access-token, x-refresh-token");
+  res.header("Access-Control-Max-Age", "86400");
   
   if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
+    return res.status(200).end();
   }
   next();
 });
