@@ -44,6 +44,26 @@ function isAllowedOrigin(origin) {
   return FRONTEND_ORIGINS.length === 0;
 }
 
+function resolveCorsOrigin(origin) {
+  if (!origin) {
+    return "";
+  }
+
+  if (FRONTEND_ORIGINS.includes(origin)) {
+    return origin;
+  }
+
+  if (isProduction && origin.endsWith(".vercel.app")) {
+    return origin;
+  }
+
+  if (FRONTEND_ORIGINS.length === 0) {
+    return origin;
+  }
+
+  return "";
+}
+
 const app = express();
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -73,12 +93,13 @@ if (cloudinaryConfigured) {
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
+  const allowedOrigin = resolveCorsOrigin(origin);
 
   if (isAllowedOrigin(origin)) {
-    if (origin) {
-      res.setHeader("Access-Control-Allow-Origin", origin);
+    if (allowedOrigin) {
+      res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
       res.setHeader("Vary", "Origin");
-      console.log(`✅ CORS: ${origin} allowed`);
+      console.log(`✅ CORS: ${allowedOrigin} allowed`);
     } else {
       console.log("✅ CORS: No origin header (allowed)");
     }
