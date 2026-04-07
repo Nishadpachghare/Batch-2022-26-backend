@@ -87,8 +87,11 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// CORS middleware - handle preflight
+// Force CORS headers on EVERY response
 app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With");
   if (req.method === "OPTIONS") {
     return res.sendStatus(204);
   }

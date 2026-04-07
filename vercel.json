@@ -1,14 +1,22 @@
 {
+  "version": 2,
   "buildCommand": "npm install",
-  "rewrites": [
+  "builds": [
     {
-      "source": "/",
-      "destination": "/api"
+      "src": "server.js",
+      "use": "@vercel/node"
     }
   ],
-  "functions": {
-    "api/[[...path]].mjs": {
-      "maxDuration": 60
+  "routes": [
+    {
+      "src": "/(.*)",
+      "methods": ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+      },
+      "dest": "server.js"
     }
-  }
+  ]
 }
