@@ -21,6 +21,20 @@ const YEAR_OPTIONS = ["1st yr", "2nd yr", "3rd yr", "4th yr"];
 const MAX_FILE_SIZE = 600 * 1024 * 1024;
 
 const app = express();
+
+// ✅ CORS MIDDLEWARE - MUST BE FIRST - before everything else
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-access-token, x-refresh-token");
+  
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_FILE_SIZE },
@@ -47,21 +61,6 @@ if (cloudinaryConfigured) {
   });
 }
 
-// CORS Configuration
-// CORS middleware - must come before routes
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With");
-  res.setHeader("Access-Control-Max-Age", "86400");
-  
-  // Handle preflight OPTIONS request
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-  
-  next();
-});
 app.use(express.json({ limit: "600mb" }));
 app.use(express.urlencoded({ limit: "600mb", extended: true }));
 app.use("/uploads", express.static(UPLOADS_DIR));
