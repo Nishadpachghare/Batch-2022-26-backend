@@ -67,13 +67,21 @@ app.use((req, res, next) => {
   next();
 });
 
+// Initialize storage and track promise for middleware
+const storageInitPromise = initializeStorage().catch((error) => {
+  console.error("Storage initialization error:", error.message);
+  throw error;
+});
+
 // Database ready check middleware (skip for health check)
-app.use((req, res, next) => {
-  if (req.path === "/api/health") return next();
-  if (!storageInitialized) {
-    return res.status(503).json({ error: "Database not ready. Try again in a moment." });
+app.use(async (req, res, next) => {
+  if (req.path === "/api/health" || req.path === "/") return next();
+  try {
+    await storageInitPromise;
+    next();
+  } catch {
+    return res.status(503).json({ error: "Database connection failed." });
   }
-  next();
 });
 
 const studentSchema = new mongoose.Schema(
@@ -514,6 +522,9 @@ async function startServer() {
     });
   });
 }
+
+// Initialize storage immediately when module loads (for Vercel serverless)
+// Already handled by storageInitPromise above
 
 if (process.argv[1] === __filename) {
   startServer().catch((error) => {
