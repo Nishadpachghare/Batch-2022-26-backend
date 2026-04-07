@@ -27,6 +27,23 @@ const DATA_FILE = path.join(DATA_DIR, "yearbook.json");
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 const YEAR_OPTIONS = ["1st yr", "2nd yr", "3rd yr", "4th yr"];
 const MAX_FILE_SIZE = 600 * 1024 * 1024;
+const isProduction = process.env.NODE_ENV === "production";
+
+function isAllowedOrigin(origin) {
+  if (!origin) {
+    return true;
+  }
+
+  if (FRONTEND_ORIGINS.includes(origin)) {
+    return true;
+  }
+
+  if (isProduction && origin.endsWith(".vercel.app")) {
+    return true;
+  }
+
+  return FRONTEND_ORIGINS.length === 0;
+}
 
 const app = express();
 const upload = multer({
@@ -58,33 +75,27 @@ if (cloudinaryConfigured) {
 app.use(
   cors({
     origin(origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) {
-        console.log("✅ CORS: No origin header (allowed)");
+      if (isAllowedOrigin(origin)) {
+        if (origin) {
+          console.log(`✅ CORS: ${origin} allowed`);
+        } else {
+          console.log("✅ CORS: No origin header (allowed)");
+        }
         callback(null, true);
         return;
       }
 
-      // Allow from configured frontend origins
-      if (FRONTEND_ORIGINS.includes(origin)) {
-        console.log(`✅ CORS: ${origin} allowed`);
-        callback(null, true);
-        return;
-      }
-
-      // If FRONTEND_ORIGINS is empty/default, allow everything
-      if (FRONTEND_ORIGINS.length === 0) {
-        console.log("✅ CORS: FRONTEND_ORIGINS empty, allowing all");
-        callback(null, true);
-        return;
-      }
-
-      console.warn(`❌ CORS: ${origin} not allowed. Allowed: ${FRONTEND_ORIGINS.join(", ")}`);
+      console.warn(
+        `❌ CORS: ${origin} not allowed. Allowed: ${FRONTEND_ORIGINS.join(", ")}`,
+      );
       callback(null, true); // Still allow for dev, just log it
     },
     credentials: true,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Accept", "Origin"],
   }),
 );
+app.options("*", cors());
 app.use(express.json({ limit: "600mb" }));
 app.use(express.urlencoded({ limit: "600mb", extended: true }));
 app.use("/uploads", express.static(UPLOADS_DIR));
