@@ -2,6 +2,7 @@ import express from "express";
 import mongoose from "mongoose";
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
+import cors from "cors";
 import dotenv from "dotenv";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -54,20 +55,43 @@ if (cloudinaryConfigured) {
   });
 }
 
-// CORS middleware - must be first
+// CORS Configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Always allow for development and production
+    const allowedOrigins = [
+      ...FRONTEND_ORIGINS,
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "http://localhost:5000",
+    ];
+
+    // Allow all vercel.app domains
+    if (origin.includes("vercel.app")) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Fallback: allow all during development
+    }
+  },
+  methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+
+// CORS middleware - handle preflight
 app.use((req, res, next) => {
-  // Always set CORS headers
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With");
-  res.header("Access-Control-Max-Age", "86400");
-
-  // Handle preflight OPTIONS request
   if (req.method === "OPTIONS") {
-    return res.writeHead(204).end();
+    return res.sendStatus(204);
   }
-
   next();
 });
 app.use(express.json({ limit: "600mb" }));
