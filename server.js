@@ -33,13 +33,13 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: "600mb" }));
-app.use(express.urlencoded({ limit: "600mb", extended: true }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_FILE_SIZE },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit for profiles
 });
 
 let storageInitialized = false;
@@ -387,6 +387,7 @@ app.patch("/api/students/:id", upload.single("image"), async (req, res, next) =>
   try {
     const studentId = req.params.id;
     const updates = {};
+    
     if (Object.hasOwn(req.body, "name")) {
       const name = String(req.body.name || "").trim();
       if (!name) return res.status(400).json({ error: "Name cannot be empty." });
@@ -399,15 +400,27 @@ app.patch("/api/students/:id", upload.single("image"), async (req, res, next) =>
     }
     if (Object.hasOwn(req.body, "year")) updates.year = normalizeYear(req.body.year);
     if (Object.hasOwn(req.body, "email")) updates.email = String(req.body.email || "").trim();
+    
+    // Handle image upload if provided
     if (req.file) {
-      if (!req.file.mimetype?.startsWith("image/")) return res.status(400).json({ error: "Must be image." });
-      const uploadedImage = await uploadAsset(req.file, req, "profiles");
-      updates.image = uploadedImage.url;
+      try {
+        if (!req.file.mimetype?.startsWith("image/")) {
+          return res.status(400).json({ error: "Must be image." });
+        }
+        const uploadedImage = await uploadAsset(req.file, req, "profiles");
+        updates.image = uploadedImage.url;
+      } catch (uploadError) {
+        console.error("Image upload failed:", uploadError.message);
+        return res.status(500).json({ error: "Image upload failed." });
+      }
     }
+    
     const updatedStudent = await updateStudentRecord(studentId, updates);
     if (!updatedStudent) return res.status(404).json({ error: "Student not found." });
+    
     res.json(updatedStudent);
   } catch (error) {
+    console.error("PATCH /api/students/:id error:", error.message);
     next(error);
   }
 });

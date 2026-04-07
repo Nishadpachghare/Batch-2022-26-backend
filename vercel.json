@@ -3,8 +3,8 @@
   "buildCommand": "npm install",
   "functions": {
     "api/[[...path]].mjs": {
-      "maxDuration": 60,
-      "memory": 1024
+      "maxDuration": 30,
+      "memory": 1536
     }
   },
   "headers": [
