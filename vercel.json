@@ -3,7 +3,7 @@
     "version": 2,
     "functions": {
         "api/[[...path]].mjs": {
-            "maxDuration": 30,
+            "maxDuration": 60,
             "memory": 3008
         }
     },
