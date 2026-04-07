@@ -21,35 +21,22 @@ const MAX_FILE_SIZE = 600 * 1024 * 1024;
 
 const app = express();
 
-// ✅ CORS Middleware - Accept ALL origins (wildcard)
-// app.use((req, res, next) => {
-//   res.header("Access-Control-Allow-Origin", "*");
-//   res.header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE");
-//   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-access-token, x-refresh-token");
-//   res.header("Access-Control-Max-Age", "86400");
+// ✅ CORS Middleware - MUST come before body parser
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  res.header("Access-Control-Max-Age", "86400");
   
-//   if (req.method === "OPTIONS") {
-//     return res.status(200).end();
-//   }
-//   next();
-// });/
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+  next();
+});
 
-const corsOptions = {
-  origin: [
-    
-    "https://batch-2022-26-navy.vercel.app/",
-    "http://localhost:3000",
-  ],
-  // origin:'*',
-  methods: ["GET", "POST", "PUT", "DELETE","OPTIONS" , "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-};
-
-
-app.use(cors(corsOptions));
-
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
+// Increase body limits to 100mb for large media responses
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ limit: "100mb", extended: true }));
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 const upload = multer({
