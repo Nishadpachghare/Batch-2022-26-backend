@@ -36,6 +36,7 @@ const upload = multer({
 
 let storageMode = "file";
 let storageInitialized = false;
+let memoryFallbackData = null;
 
 const cloudinaryConfigured = Boolean(
   process.env.CLOUDINARY_NAME &&
@@ -259,6 +260,7 @@ async function ensureLocalStorage() {
 
     const initialData = createLocalSeedData();
     await fs.writeFile(DATA_FILE, JSON.stringify(initialData, null, 2));
+    memoryFallbackData = initialData;
   }
 }
 
@@ -267,8 +269,15 @@ async function readLocalData() {
     const raw = await fs.readFile(DATA_FILE, "utf8");
     return sanitizeLocalData(JSON.parse(raw));
   } catch (error) {
-    console.error("❌ Error reading local data file:", error.message);
-    throw error;
+    if (!memoryFallbackData) {
+      memoryFallbackData = createLocalSeedData();
+    }
+
+    console.warn(
+      "⚠️ Falling back to in-memory seed data because local data file could not be read:",
+      error.message,
+    );
+    return sanitizeLocalData(memoryFallbackData);
   }
 }
 
@@ -276,10 +285,14 @@ async function writeLocalData(data) {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
     await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
+    memoryFallbackData = data;
     console.log("✅ Data persisted to file successfully");
   } catch (error) {
-    console.error("❌ ERROR: Failed to save data to file:", error.message);
-    throw error;
+    memoryFallbackData = data;
+    console.warn(
+      "⚠️ Local data file could not be written. Keeping changes in memory:",
+      error.message,
+    );
   }
 }
 
