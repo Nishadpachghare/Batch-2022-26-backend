@@ -22,18 +22,7 @@ const MAX_FILE_SIZE = 600 * 1024 * 1024;
 const app = express();
 
 // ✅ STEP 1: CORS must be the VERY FIRST middleware
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-  res.setHeader("Access-Control-Max-Age", "86400");
 
-  // ✅ STEP 2: OPTIONS preflight must return 200 immediately
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-  next();
-});
 
 // ✅ STEP 3: cors package as backup
 app.use(cors({
