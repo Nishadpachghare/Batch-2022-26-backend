@@ -48,8 +48,8 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-app.use(express.json({ limit: "200mb" }));
-app.use(express.urlencoded({ limit: "200mb", extended: true }));
+app.use(express.json({ limit: "600mb" }));
+app.use(express.urlencoded({ limit: "600mb", extended: true }));
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 const upload = multer({
