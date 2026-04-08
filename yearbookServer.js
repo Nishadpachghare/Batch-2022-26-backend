@@ -17,7 +17,7 @@ const PORT = Number(process.env.PORT) || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
 const UPLOADS_DIR = path.join(__dirname, "uploads");
 const YEAR_OPTIONS = ["1st yr", "2nd yr", "3rd yr", "4th yr"];
-const MAX_FILE_SIZE = 600 * 1024 * 1024;
+const MAX_FILE_SIZE = 200 * 1024 * 1024;
 
 const app = express();
 
@@ -48,8 +48,8 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-app.use(express.json({ limit: "600mb" }));
-app.use(express.urlencoded({ limit: "600mb", extended: true }));
+app.use(express.json({ limit: "200mb" }));
+app.use(express.urlencoded({ limit: "200mb", extended: true }));
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 const upload = multer({
