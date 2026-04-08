@@ -321,20 +321,39 @@ async function saveFileLocally(file, req, folder) {
 }
 
 async function uploadAsset(file, req, folder) {
+  /**
+   * CLOUDINARY UPLOAD FLOW:
+   * 1. Receives file buffer from multer (stored in memory, max 200MB)
+   * 2. Transfers to Cloudinary uploader stream
+   * 3. Cloudinary stores file and generates:
+   *    - secure_url: HTTPS URL to access the file
+   *    - resource_type: 'image' or 'video'
+   *    - public_id: Unique Cloudinary identifier
+   * 4. Returns: { url, resourceType, mimeType }
+   * 5. Backend stores this URL in MongoDB
+   * 6. URL sent back to frontend for display
+   */
   if (cloudinaryConfigured) {
     try {
       const result = await new Promise((resolve, reject) => {
+        // Create upload stream to Cloudinary
         const stream = cloudinary.uploader.upload_stream(
-          { folder: `yearbook/${folder}`, resource_type: "auto" },
+          { 
+            folder: `yearbook/${folder}`, // Organize by: profiles or memories
+            resource_type: "auto" // Auto-detect image/video
+          },
           (error, uploadedFile) => {
             if (error) reject(error);
             else resolve(uploadedFile);
           }
         );
+        // Send file buffer to Cloudinary
         stream.end(file.buffer);
       });
+      
+      // Return secure URL and metadata for MongoDB storage
       return {
-        url: result.secure_url,
+        url: result.secure_url, // HTTPS URL - stored in MongoDB
         resourceType: result.resource_type || "image",
         mimeType: file.mimetype || "",
       };
@@ -342,6 +361,7 @@ async function uploadAsset(file, req, folder) {
       console.warn(`Cloudinary failed, saving locally instead. ${error.message}`);
     }
   }
+  // Fallback: Save locally if Cloudinary unavailable
   return saveFileLocally(file, req, folder);
 }
 
@@ -386,6 +406,24 @@ app.post("/api/students", async (req, res, next) => {
 });
 
 app.patch("/api/students/:id", upload.single("image"), async (req, res, next) => {
+  /**
+   * UPDATE STUDENT PROFILE WITH IMAGE
+   * 
+   * INPUT: multipart/form-data with:
+   * - name: Display name
+   * - roll: Roll number
+   * - year: Class year
+   * - image: Profile photo file (optional)
+   * 
+   * PROFILE PICTURE UPLOAD FLOW:
+   * 1. Receive image file (max 200MB)
+   * 2. Call uploadAsset() → uploads to Cloudinary (folder: yearbook/profiles)
+   * 3. Cloudinary returns secure_url (HTTPS)
+   * 4. Save URL in Student.image field in MongoDB
+   * 5. Return updated Student document with new image URL
+   * 
+   * FRONT END DISPLAYS: Profile card with new image immediately
+   */
   try {
     const studentId = req.params.id;
     const updates = {};
@@ -409,8 +447,9 @@ app.patch("/api/students/:id", upload.single("image"), async (req, res, next) =>
         if (!req.file.mimetype?.startsWith("image/")) {
           return res.status(400).json({ error: "Must be image." });
         }
+        // Upload to Cloudinary and get secure URL
         const uploadedImage = await uploadAsset(req.file, req, "profiles");
-        updates.image = uploadedImage.url;
+        updates.image = uploadedImage.url; // Store Cloudinary URL in MongoDB
       } catch (uploadError) {
         console.error("Image upload failed:", uploadError.message);
         return res.status(500).json({ error: "Image upload failed." });
@@ -450,12 +489,44 @@ app.get("/api/media", async (req, res, next) => {
 });
 
 app.post(["/api/media", "/api/upload"], upload.single("file"), async (req, res, next) => {
+  /**
+   * COMPLETE MEMORY UPLOAD FLOW:
+   * 
+   * INPUT: FormData with:
+   * - file: Photo/Video binary
+   * - caption: Display caption
+   * - year: Memory year (1st yr, 2nd yr, etc.)
+   * - uploadedBy: Student name
+   * - studentId: Student MongoDB ID
+   * - studentName: Student name
+   * 
+   * PROCESS:
+   * 1. Multer receives file (max 200MB) → stored in memory
+   * 2. uploadAsset() → uploads to Cloudinary → returns { url, resourceType, mimeType }
+   * 3. createMediaRecord() → saves to MongoDB with Cloudinary URL + metadata
+   * 
+   * OUTPUT: Complete Media document with:
+   * - _id: MongoDB ID
+   * - url: Cloudinary secure URL (HTTPS)
+   * - caption, year, studentId, studentName
+   * - uploadedAt: timestamp
+   * - resourceType: 'image' or 'video'
+   * 
+   * FRONTEND RECEIVES: Media document with Cloudinary URL
+   * USER SEES: Uploaded memory in MediaVault page
+   */
   try {
     if (!req.file) return res.status(400).json({ error: "Choose a file before uploading." });
+    
+    // STEP 1: Upload to Cloudinary
     const uploadedAsset = await uploadAsset(req.file, req, "memories");
+    
+    // STEP 2: Normalize year
     const year = normalizeYear(req.body.year || req.body.category);
+    
+    // STEP 3: Create MongoDB record with Cloudinary URL
     const media = await createMediaRecord({
-      url: uploadedAsset.url,
+      url: uploadedAsset.url, // Cloudinary URL
       caption: String(req.body.caption || "").trim() || `${String(req.body.studentName || "Memory").trim()} - ${year}`,
       category: year,
       year,
@@ -465,6 +536,8 @@ app.post(["/api/media", "/api/upload"], upload.single("file"), async (req, res, 
       resourceType: uploadedAsset.resourceType,
       mimeType: uploadedAsset.mimeType,
     });
+    
+    // STEP 4: Return created Media document to frontend
     res.status(201).json(media);
   } catch (error) {
     next(error);
